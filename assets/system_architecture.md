@@ -1,0 +1,218 @@
+# System Architecture Diagrams — PingSight
+
+## Diagram 1: High-Level System
+
+```
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                         PINGSIGHT SYSTEM                                  ║
+╠═══════════════╦═══════════════════════════╦═══════════════════════════════╣
+║               ║                           ║                               ║
+║  ┌─────────┐  ║  ┌──────────────────────┐ ║  ┌───────────────────────┐   ║
+║  │  VIDEO  │  ║  │   PERCEPTION LAYER   │ ║  │    GEOMETRY LAYER     │   ║
+║  │  INPUT  │─▶║  │                      │ ║  │                       │   ║
+║  │  (MP4)  │  ║  │  ┌────────────────┐  │ ║  │  Levenberg-Marquardt  │   ║
+║  └─────────┘  ║  │  │ Ball Detector  │  │─║─▶│  Camera Calibration   │   ║
+║               ║  │  │   (Ensemble)   │  │ ║  │                       │   ║
+║               ║  │  └────────────────┘  │ ║  │  3×4 Projection       │   ║
+║               ║  │                      │ ║  │  Matrix P             │   ║
+║               ║  │  ┌────────────────┐  │ ║  └───────────┬───────────┘   ║
+║               ║  │  │ Table Detector │  │ ║              │               ║
+║               ║  │  │ (13 Keypoints) │  │ ║              │               ║
+║               ║  │  └────────────────┘  │ ║              │               ║
+║               ║  └──────────────────────┘ ║              │               ║
+╠═══════════════╬═══════════════════════════╩══════════════╬════════════════╣
+║               ║                                          ║                ║
+║               ║  ┌──────────────────────────────────────▼──────────────┐ ║
+║               ║  │                  UPLIFTING LAYER                     │ ║
+║               ║  │                                                      │ ║
+║               ║  │   2D detections + Camera P                          │ ║
+║               ║  │        │                                             │ ║
+║               ║  │        ▼                                             │ ║
+║               ║  │   ┌──────────────────────────────────────────────┐  │ ║
+║               ║  │   │  Physics-Aware Transformer                   │  │ ║
+║               ║  │   │  ┌──────────┐ ┌──────────┐ ┌──────────────┐ │  │ ║
+║               ║  │   │  │ Ball Emb │ │Table Emb │ │  Rotary Pos  │ │  │ ║
+║               ║  │   │  └────┬─────┘ └─────┬────┘ └──────┬───────┘ │  │ ║
+║               ║  │   │       └──────────────┴─────────────┘         │  │ ║
+║               ║  │   │                     │                         │  │ ║
+║               ║  │   │              Transformer Blocks               │  │ ║
+║               ║  │   │              (Multi-head Attention)           │  │ ║
+║               ║  │   │                     │                         │  │ ║
+║               ║  │   │         ┌───────────┼───────────┐            │  │ ║
+║               ║  │   │         ▼           ▼           ▼            │  │ ║
+║               ║  │   │    Stage 1     Stage 2      Stage 3          │  │ ║
+║               ║  │   │   Coarse XYZ   Residual     Spin Vec         │  │ ║
+║               ║  │   └──────────────────────────────────────────────┘  │ ║
+║               ║  │                                                      │ ║
+║               ║  │   Output: [x, y, z, spin_top, spin_side] per frame  │ ║
+║               ║  └──────────────────────────────────────────────────────┘ ║
+╠═══════════════╬═════════════════════════════════════════════════════════════╣
+║               ║                                                             ║
+║               ║  ┌──────────────────────────────────────────────────────┐  ║
+║               ║  │                  ANALYTICS LAYER                      │  ║
+║               ║  │                                                       │  ║
+║               ║  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐ │  ║
+║               ║  │  │   Bounce    │  │    Zone      │  │   Rally     │ │  ║
+║               ║  │  │  Detector   │  │ Classifier   │  │  Segmenter  │ │  ║
+║               ║  │  │ (Z-height)  │  │  (18 zones)  │  │  (strokes)  │ │  ║
+║               ║  │  └──────┬──────┘  └──────┬───────┘  └──────┬──────┘ │  ║
+║               ║  │         └─────────────────┼─────────────────┘        │  ║
+║               ║  │                           │                           │  ║
+║               ║  │                           ▼                           │  ║
+║               ║  │                  Temporal Pattern                     │  ║
+║               ║  │                  Aggregator                           │  ║
+║               ║  │              (Transition Matrix)                      │  ║
+║               ║  └──────────────────────────┬────────────────────────────┘  ║
+╠═══════════════╬════════════════════════════╦╩════════════════════════════════╣
+║               ║                            ║                                 ║
+║               ║  ┌──────────────────────┐  ║  ┌──────────────────────────┐  ║
+║               ║  │   COACHING AGENT     │  ║  │  VISUALIZATION ENGINE    │  ║
+║               ║  │                      │  ║  │                          │  ║
+║               ║  │ Vector Store         │  ║  │  Annotated MP4           │  ║
+║               ║  │ RAG Retrieval        │  ║  │  Slow-motion GIF         │  ║
+║               ║  │ LLM Synthesis        │  ║  │  Zone Heatmap PNG        │  ║
+║               ║  │ ─────────────────    │  ║  │  3D Trajectory GIF       │  ║
+║               ║  │ Coaching Report      │  ║  └──────────────────────────┘  ║
+║               ║  └──────────────────────┘  ║                                 ║
+╚═══════════════╩════════════════════════════╩═════════════════════════════════╝
+```
+
+---
+
+## Diagram 2: Zone Grid
+
+```
+                    TABLE TENNIS ZONE GRID
+                    (Top-down view, net at center)
+
+    FAR PLAYER SIDE                    NEAR PLAYER SIDE
+    (prime zones: a1', b2', etc.)      (plain zones: a1, b2, etc.)
+
+LEFT ←                                                     → RIGHT
+
+     ┌──────────┬──────────┬──────────╬──────────┬──────────┬──────────┐
+     │          │          │          ║          │          │          │
+BASE │   a3'    │   a2'    │   a1'    ║   a1     │   a2     │   a3     │ BASE
+     │  (far    │  (far    │  (far    ║  (near   │  (near   │  (near   │
+     │  wide)   │  mid)    │  center) ║  center) │  mid)    │  wide)   │
+     ├──────────┼──────────┼──────────╬──────────┼──────────┼──────────┤
+     │          │          │          ║          │          │          │
+MID  │   b3'    │   b2'    │   b1'    ║   b1     │   b2     │   b3     │ MID
+     │          │          │          ║          │          │          │
+     ├──────────┼──────────┼──────────╬──────────┼──────────┼──────────┤
+     │          │          │          ║          │          │          │
+NET  │   c3'    │   c2'    │   c1'    ║   c1     │   c2     │   c3     │ NET
+     │          │          │          ║          │          │          │
+     └──────────┴──────────┴──────────╬──────────┴──────────┴──────────┘
+                                      ║
+                              ════════╬════════  ← NET
+                                      ║
+
+    Zone naming convention:
+      Row:  a = baseline, b = middle, c = near net
+      Col:  1 = center, 2 = mid-table, 3 = wide
+      Side: plain = near player, ' (prime) = far player
+      OOB:  "0" = out of bounds
+```
+
+---
+
+## Diagram 3: Data Flow Timeline
+
+```
+TIME ──────────────────────────────────────────────────────────────────▶
+
+         VIDEO FRAMES
+         ─────────────────────────────────────────────────────────────
+         F1  F2  F3  F4  F5  F6  F7  F8  F9  F10 ...  Fn
+          │   │   │   │   │   │   │   │   │   │
+          └───┴───┘   └───┴───┘   └───┴───┘   ...     Frame triplets
+            T1            T3            T5
+
+         BALL DETECTION
+         ─────────────────────────────────────────────────────────────
+         T1──▶(u1,v1)  T3──▶(u3,v3)  T5──▶(u5,v5) ...   Per-triplet
+              ↓              ↓              ↓
+         DBSCAN FILTERING (sliding window across N=15 frames)
+              ↓
+         Cleaned: [(f2,u2,v2), (f4,u4,v4), (f6,u6,v6), ...]
+
+         TABLE DETECTION (per segment, not per frame)
+         ─────────────────────────────────────────────────────────────
+         Segment 1 [F1..F80] ──▶ Camera matrix P₁
+         Segment 2 [F81..F160] ─▶ Camera matrix P₂
+         ...
+
+         3D UPLIFTING (per rally)
+         ─────────────────────────────────────────────────────────────
+         Rally 1: 2D seq + P₁ ──▶ 3D seq₁ [x,y,z,spin per frame]
+         Rally 2: 2D seq + P₁ ──▶ 3D seq₂
+         ...
+
+         ANALYTICS (per rally)
+         ─────────────────────────────────────────────────────────────
+         3D seq ──▶ Bounces ──▶ Zones ──▶ Triplets
+                    B₁(f28)     c2'        (–, c2', a1)
+                    B₂(f51)     a1         (c2', a1, b3')
+                    B₃(f78)     b3'        (a1, b3', b1)
+                    ...
+
+         AGGREGATION (after all rallies)
+         ─────────────────────────────────────────────────────────────
+         All triplets ──▶ Transition matrix
+         All zones    ──▶ Frequency heatmap
+         All spins    ──▶ Spin distribution
+
+         COACHING REPORT (once per session)
+         ─────────────────────────────────────────────────────────────
+         Stats + RAG ──▶ Text report
+```
+
+---
+
+## Diagram 4: Transformer Architecture
+
+```
+                    UPLIFTING TRANSFORMER
+
+Input Sequence (length T = number of frames in rally):
+  ┌────────────────────────────────────────────────────┐
+  │  Frame 1    Frame 2    Frame 3    ...    Frame T    │
+  │  (u1, v1)   (u2, v2)   (u3, v3)         (uT, vT)  │
+  └────────────────────────────────────────────────────┘
+              ↓               ↓
+  ┌───────────────────┐  ┌──────────────────────────┐
+  │  Ball Embedding   │  │  Table Embedding          │
+  │  Linear(2→D)      │  │  Linear(13×2 → D)         │
+  └────────┬──────────┘  └──────────┬───────────────┘
+           └──────────────┬──────────┘
+                          │
+                   ┌──────▼──────┐
+                   │  + Rotary   │
+                   │  Position   │
+                   │  Embedding  │
+                   │  (time-aware)
+                   └──────┬──────┘
+                          │
+              ┌───────────▼───────────┐
+              │   Transformer Block 1  │
+              │   Multi-Head Attn (8h) │
+              │   LayerNorm + FFN      │
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
+              │   Transformer Block 2  │   ──▶ Linear(D→3)  ──▶  XYZ coarse
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
+              │   Transformer Block 3  │   ──▶ Linear(D→3)  ──▶  XYZ delta
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
+              │   Transformer Block 4  │   ──▶ Linear(D→2)  ──▶  Spin
+              └───────────────────────┘
+
+  Final output per frame:
+    XYZ = XYZ_coarse + XYZ_delta  (residual connection)
+    Spin = [topspin_rps, sidespin_rps]
+```
