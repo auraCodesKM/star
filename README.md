@@ -314,7 +314,7 @@ PingSight/
 
 ## Research Foundation
 
-This system extends and unifies work from the **TEEP Research Program** at National Ilan University, Taiwan, building on:
+Building on:
 
 > *"Uplifting Table Tennis: A Robust, Real-World Application for 3D Trajectory and Spin Estimation"*
 > Kienzle et al., **WACV 2026**
